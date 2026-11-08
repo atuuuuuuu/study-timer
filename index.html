@@ -1,0 +1,267 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Study timer</title>
+<style>
+  :root {
+    --bg: #f6f7fb; --card: #ffffff; --text: #15192b; --muted: #5d6480; --line: #e3e6f0;
+    --focus: #e5533d; --short: #1f9d72; --long: #3b6fe0; --accent: var(--focus);
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg: #0e1120; --card: #171b2e; --text: #eef0f8; --muted: #9aa1bd; --line: #2a3050; color-scheme: dark; }
+  }
+  body[data-mode="short"] { --accent: var(--short); }
+  body[data-mode="long"]  { --accent: var(--long); }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100vh; display: grid; place-items: center; padding: 24px 16px;
+    background: var(--bg); color: var(--text);
+    font: 16px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    transition: background .4s;
+  }
+  main { width: 100%; max-width: 440px; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 24px; padding: 28px 24px; box-shadow: 0 10px 40px rgb(0 0 0 / .06); }
+  h1 { font-size: 1.1rem; margin: 0 0 18px; text-align: center; letter-spacing: .02em; }
+
+  .modes { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; background: var(--bg); padding: 5px; border-radius: 14px; }
+  .modes button { border: 0; background: transparent; color: var(--muted); padding: 10px 4px; border-radius: 10px; font: inherit; font-size: .9rem; cursor: pointer; min-height: 44px; }
+  .modes button[aria-pressed="true"] { background: var(--card); color: var(--accent); font-weight: 700; box-shadow: 0 1px 4px rgb(0 0 0 / .08); }
+
+  .dial { position: relative; width: min(280px, 78vw); aspect-ratio: 1; margin: 26px auto 20px; }
+  .dial svg { width: 100%; height: 100%; transform: rotate(-90deg); }
+  .dial circle { fill: none; stroke-width: 10; }
+  .track { stroke: var(--line); }
+  .progress { stroke: var(--accent); stroke-linecap: round; transition: stroke .4s; }
+  .readout { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; }
+  #time { font-size: clamp(3rem, 15vw, 4.4rem); font-weight: 750; font-variant-numeric: tabular-nums; letter-spacing: -.03em; line-height: 1; }
+  #label { color: var(--muted); margin-top: 8px; font-size: .95rem; }
+
+  .controls { display: flex; gap: 10px; justify-content: center; }
+  .controls button { font: inherit; border-radius: 14px; min-height: 48px; padding: 0 20px; cursor: pointer; border: 1px solid var(--line); background: var(--card); color: var(--text); }
+  #start { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 700; min-width: 140px; transition: background .4s; }
+  button:focus-visible, input:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+  .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 22px; }
+  .stat { background: var(--bg); border-radius: 14px; padding: 12px; text-align: center; }
+  .stat b { display: block; font-size: 1.5rem; font-variant-numeric: tabular-nums; }
+  .stat span { color: var(--muted); font-size: .85rem; }
+
+  details { margin-top: 16px; color: var(--muted); }
+  summary { cursor: pointer; padding: 6px 0; }
+  .settings { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 8px; }
+  .settings label { font-size: .8rem; display: grid; gap: 4px; }
+  .settings input { font: inherit; width: 100%; padding: 8px; border-radius: 10px; border: 1px solid var(--line); background: var(--bg); color: var(--text); min-height: 44px; }
+  .hint { text-align: center; color: var(--muted); font-size: .8rem; margin-top: 14px; }
+  kbd { border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 5px; padding: 0 5px; font-size: .75rem; }
+  .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+</style>
+</head>
+<body data-mode="focus">
+<main>
+  <div class="card">
+    <h1>Study timer</h1>
+
+    <div class="modes" role="group" aria-label="Timer mode">
+      <button type="button" data-mode="focus" aria-pressed="true">Focus</button>
+      <button type="button" data-mode="short" aria-pressed="false">Short break</button>
+      <button type="button" data-mode="long" aria-pressed="false">Long break</button>
+    </div>
+
+    <div class="dial">
+      <svg viewBox="0 0 120 120" aria-hidden="true">
+        <circle class="track" cx="60" cy="60" r="52"/>
+        <circle class="progress" id="ring" cx="60" cy="60" r="52"/>
+      </svg>
+      <div class="readout">
+        <div id="time" role="timer" aria-live="off">25:00</div>
+        <div id="label">Time to focus</div>
+      </div>
+    </div>
+
+    <div class="controls">
+      <button type="button" id="start">Start</button>
+      <button type="button" id="reset" aria-label="Reset timer">Reset</button>
+      <button type="button" id="skip" aria-label="Skip to next">Skip</button>
+    </div>
+
+    <div class="stats">
+      <div class="stat"><b id="sessions">0</b><span>focus sessions today</span></div>
+      <div class="stat"><b id="minutes">0</b><span>minutes focused today</span></div>
+    </div>
+
+    <details>
+      <summary>Settings</summary>
+      <div class="settings">
+        <label>Focus (min)<input id="set-focus" type="number" min="1" max="180" value="25"></label>
+        <label>Short (min)<input id="set-short" type="number" min="1" max="60" value="5"></label>
+        <label>Long (min)<input id="set-long" type="number" min="1" max="60" value="15"></label>
+      </div>
+    </details>
+
+    <p class="hint"><kbd>Space</kbd> start / pause · <kbd>R</kbd> reset</p>
+    <div id="announce" class="sr" role="status" aria-live="polite"></div>
+  </div>
+</main>
+
+<script>
+// ---------------------------------------------------------------------------
+// The one important idea: never COUNT seconds. Remember WHEN the timer ends,
+// and each tick, work out how long is left from the real clock (Date.now()).
+// Browsers slow down timers in background tabs, so counting "1 second per tick"
+// drifts; subtracting two clock readings is always right.
+// ---------------------------------------------------------------------------
+
+const $ = (id) => document.getElementById(id);
+const LABELS = { focus: "Time to focus", short: "Short break", long: "Long break" };
+const STORE = "study-timer-v1";
+
+// Everything the app needs to remember, in one object.
+let state = {
+  mode: "focus",
+  minutes: { focus: 25, short: 5, long: 15 },
+  endsAt: null,        // clock time (ms) when the running timer ends, or null when paused
+  remaining: 25 * 60 * 1000,   // ms left, used while paused
+  focusCount: 0,       // focus sessions finished in the current cycle (every 4th break is long)
+  today: { date: todayKey(), sessions: 0, minutes: 0 },
+};
+
+function todayKey() { return new Date().toLocaleDateString("en-CA"); }   // 2026-11-09
+
+// ----- saving: localStorage keeps state through a refresh or closing the tab -----
+function save() {
+  try { localStorage.setItem(STORE, JSON.stringify(state)); } catch { /* private mode: just don't save */ }
+}
+function load() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORE));
+    if (saved) state = { ...state, ...saved };
+  } catch { /* nothing saved yet, or unreadable */ }
+  if (state.today.date !== todayKey()) state.today = { date: todayKey(), sessions: 0, minutes: 0 };
+}
+
+// ----- the clock -----
+const full = () => state.minutes[state.mode] * 60 * 1000;
+const timeLeft = () => (state.endsAt ? Math.max(0, state.endsAt - Date.now()) : state.remaining);
+const running = () => state.endsAt !== null;
+
+function start() {
+  state.endsAt = Date.now() + state.remaining;
+  unlockSound();
+  save(); render();
+}
+function pause() {
+  state.remaining = timeLeft();
+  state.endsAt = null;
+  save(); render();
+}
+function reset() {
+  state.endsAt = null;
+  state.remaining = full();
+  save(); render();
+}
+function setMode(mode) {
+  state.mode = mode;
+  state.endsAt = null;
+  state.remaining = full();
+  save(); render();
+}
+
+// A timer reached zero (or you pressed Skip).
+function finish(skipped = false) {
+  if (state.mode === "focus") {
+    if (!skipped) {
+      state.today.sessions += 1;
+      state.today.minutes += state.minutes.focus;
+    }
+    state.focusCount += 1;
+    setMode(state.focusCount % 4 === 0 ? "long" : "short");
+  } else {
+    setMode("focus");
+  }
+  if (!skipped) {
+    chime();
+    say(state.mode === "focus" ? "Break over. Time to focus." : `Nice work. ${LABELS[state.mode]}.`);
+  }
+}
+
+// ----- drawing -----
+const ring = $("ring");
+const C = 2 * Math.PI * 52;        // circumference of the ring
+ring.style.strokeDasharray = C;
+
+function fmt(ms) {
+  const s = Math.ceil(ms / 1000);  // ceil: show 25:00 at the start, 00:01 in the last second
+  return `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(s % 60).padStart(2, "0")}`;
+}
+
+function render() {
+  const left = timeLeft();
+  $("time").textContent = fmt(left);
+  $("label").textContent = LABELS[state.mode];
+  ring.style.strokeDashoffset = C * (1 - left / full());
+  document.body.dataset.mode = state.mode;
+  document.querySelectorAll(".modes button").forEach((b) => b.setAttribute("aria-pressed", String(b.dataset.mode === state.mode)));
+  $("start").textContent = running() ? "Pause" : left < full() ? "Resume" : "Start";
+  $("sessions").textContent = state.today.sessions;
+  $("minutes").textContent = state.today.minutes;
+  document.title = running() ? `${fmt(left)} · ${LABELS[state.mode]}` : "Study timer";
+  for (const m of ["focus", "short", "long"]) $(`set-${m}`).value = state.minutes[m];
+}
+
+// Tick 4 times a second. Each tick just asks the clock how much is left.
+setInterval(() => {
+  if (running() && timeLeft() === 0) finish();
+  else if (running()) render();
+}, 250);
+
+// ----- sound: a short three-note chime made with the Web Audio API (no sound files) -----
+let audio;
+function unlockSound() {              // browsers only allow sound after a click, so create it on Start
+  audio = audio || new (window.AudioContext || window.webkitAudioContext)();
+  if (audio.state === "suspended") audio.resume();
+}
+function chime() {
+  if (!audio) return;
+  [660, 880, 1320].forEach((freq, i) => {
+    const t = audio.currentTime + i * 0.18;
+    const osc = audio.createOscillator(), gain = audio.createGain();
+    osc.frequency.value = freq;
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(0.25, t + 0.02);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.5);
+    osc.connect(gain).connect(audio.destination);
+    osc.start(t); osc.stop(t + 0.55);
+  });
+}
+function say(text) { $("announce").textContent = text; }   // read out by screen readers
+
+// ----- buttons, keys, settings -----
+$("start").addEventListener("click", () => (running() ? pause() : start()));
+$("reset").addEventListener("click", reset);
+$("skip").addEventListener("click", () => finish(true));
+document.querySelectorAll(".modes button").forEach((b) => b.addEventListener("click", () => setMode(b.dataset.mode)));
+
+document.addEventListener("keydown", (e) => {
+  if (e.target.tagName === "INPUT" || e.metaKey || e.ctrlKey) return;
+  if (e.code === "Space" && e.target.tagName !== "BUTTON") { e.preventDefault(); running() ? pause() : start(); }
+  if (e.key === "r" || e.key === "R") reset();
+});
+
+for (const m of ["focus", "short", "long"]) {
+  $(`set-${m}`).addEventListener("change", (e) => {
+    const v = Math.round(Number(e.target.value));
+    state.minutes[m] = Math.min(Number(e.target.max), Math.max(1, v || state.minutes[m]));
+    if (m === state.mode && !running()) state.remaining = full();
+    save(); render();
+  });
+}
+
+load();
+if (running() && timeLeft() === 0) finish();   // it ended while the tab was closed
+render();
+</script>
+</body>
+</html>
