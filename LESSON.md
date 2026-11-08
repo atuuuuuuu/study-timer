@@ -1,6 +1,5 @@
 # Study timer: how it works, and how to build your own
 
-`index.html` is a **reference demo written by Claude**. Study it, then build your own version (part 3).
 Everything is in one file: HTML at the top (what's on the page), CSS in `<style>` (how it looks), JavaScript in
 `<script>` (what it does). Open it by double-clicking `index.html`, or `open ~/learning/study-timer/index.html`.
 
